@@ -12,7 +12,48 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+    steps: 
+    # Todo esto se ejecuta en los servidores de Git-Hub
+    # Es como tomar mi codigo, y hacer cositas aqui, que github me permite ejecutar en un pc distinto al mio
+    # Otra cosa, es que en las ejecuciones del codigo, no es necesario crear tantos steps, perfectamente puedo tener ...
+    # ... un mismo step con pipe lines que ejecute todo
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # Opcion que esta pendiente si hago algun cambio en profundidad en mi codigo
+        fetch-depth: 0
+    # Los plugins siempre van despues del "checkout" del codigo
+    - name: Git Semantic Version
+      uses: PaulHatch/semantic-version@v4.0.3
+      # Configuraciones predeterminadas de los 
+      with:
+        major_pattern: "major:"
+        minor_pattern: "feat:"
+        format: "${major}.${minor}.${patch}"
+      # Esto es importante, porque cada paso puede generarnos un "resultado" como una variable, que podemos usar posteriormente, por eso
+      # ... se identifican con un id
+      id: version
+    - name: Docker login
+      # Usos de variables de entorno definidas en las actions!
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_USER }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      run: |
+        echo: "Iniciando Login"
+        docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
+        echo: "Fin de login"
+    - name: Build Docker IMG
+      # Cada step, puede tener sus propias variables de entorno
+      env:
+        # Aqui se usa el producto de los steps, en este caso del step version
+        NEW_VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        docker build . -t dockerluiscca/docker-graphq:$NEW_VERSION
+        docker build . -t dockerluiscca/docker-graphq:latest
+    - name: Push Docker IMG
+      env:
+        # Aqui se usa el producto de los steps, en este caso del step version
+        NEW_VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        docker push dockerluiscca/docker-graphq:$NEW_VERSION
+        docker push dockerluiscca/docker-graphq:latest
